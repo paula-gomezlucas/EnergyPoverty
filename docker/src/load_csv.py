@@ -1,33 +1,41 @@
-# load_csv_to_es.py
-import os
-import pandas as pd
 from elasticsearch import Elasticsearch
-from dotenv import load_dotenv
+import pandas as pd
+import os
 
-load_dotenv()
-
+# Initialize Elasticsearch client
 es = Elasticsearch(
-    os.getenv("ELASTIC_HOST"),
-    basic_auth=("elastic", os.getenv("ELASTIC_PASSWORD"))
+    hosts=[{'host': 'elasticsearch', 'port': 9200}],
+    http_auth=('elastic', os.environ.get('ELASTIC_PASSWORD'))
 )
+def load_csv_files():
+    csv_directory = '/app/csv_files/'
 
-# Function to process CSVs from a directory
-def process_csvs(directory, index_name):
-    for filename in os.listdir(directory):
-        if filename.endswith(".csv"):
-            file_path = os.path.join(directory, filename)
-            df = pd.read_csv(file_path)
+    # List all CSV files in the directory
+    csv_files = [f for f in os.listdir(csv_directory) if f.endswith('.csv')]
 
-            # Add additional metadata (filename or source) if necessary
-            for _, row in df.iterrows():
-                es.index(index=index_name, document=row.to_dict())
+    for csv_file in csv_files:
+        file_path = os.path.join(csv_directory, csv_file)
 
-            print(f"Uploaded {filename} to Elasticsearch.")
+        # Load the CSV file
+        df = pd.read_csv(file_path, delimiter=';')  # Adjust delimiter if needed
 
-# Paths to directories
-autoconsumo_dir = "./data/autoconsumo"
-tarifa_dir = "./data/tarifa"
+        # Determine the index name based on the file name (optional)
+        index_name = os.path.splitext(csv_file)[0].lower()
 
-# Upload to Elasticsearch
-process_csvs(autoconsumo_dir, "autoconsumo_data")
-process_csvs(tarifa_dir, "tarifa_data")
+        # Convert DataFrame to list of dictionaries
+        records = df.to_dict(orient='records')
+
+        # Index the data into Elasticsearch
+        for record in records:
+            es.index(index=index_name, body=record)
+
+        print(f"Indexed data from {csv_file} into index '{index_name}'.")
+
+if __name__ == "__main__":
+    
+    load_csv_files()
+    
+    # Query the data to verify it was indexed correctly
+    res = es.search(index='autoconsumo', body={'query': {'match_all': {}}})
+    res = es.search(index='tarifa', body={'query': {'match_all': {}}})
+    print("All CSV files have been processed.")

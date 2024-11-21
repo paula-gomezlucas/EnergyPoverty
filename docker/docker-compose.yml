@@ -7,23 +7,23 @@ services:
       - "ELASTIC_PASSWORD=${ELASTIC_PASSWORD}"  # Loaded from .env
     ports:
       - "9200:9200"
-
-  csv_loader:
-    build:
-      context: .
-      dockerfile: csv_loader.dockerfile
-    env_file:
-      - .env  # Load variables from the .env file
-    depends_on:
-      - elasticsearch
-    restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   api_loader:
     build:
       context: .
       dockerfile: api_loader.dockerfile
     env_file:
-      - .env  # Load variables from the .env file
+      - .env
     depends_on:
-      - elasticsearch
-    restart: "always"
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - esnet
+
+networks:
+  esnet:
