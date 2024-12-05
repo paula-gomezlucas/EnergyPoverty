@@ -12,10 +12,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    networks:
+      - esnet
 
   api_loader:
     build:
-      context: .
       dockerfile: api_loader.dockerfile
     env_file:
       - .env
