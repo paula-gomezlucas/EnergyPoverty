@@ -14,9 +14,24 @@ services:
       retries: 5
     networks:
       - esnet
+      
+  csv_loader:
+    build:
+      context: .
+      dockerfile: csv_loader.dockerfile
+    env_file:
+      - .env
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - esnet
+    volumes:
+      - ./data:/app/data
 
   api_loader:
     build:
+      context: .
       dockerfile: api_loader.dockerfile
     env_file:
       - .env
