@@ -46,10 +46,9 @@ def load_csv_files():
                 folder = os.path.basename(os.path.dirname(file_path)).lower()
 
                 index_name = f"{folder}_{os.path.splitext(file)[0].lower()}"
-                print(index_name)
 
                 if es.indices.exists(index=index_name):
-                    print(f"Index '{index_name}' already exists. Skipping loading data from {file_path}.")
+                    # print(f"Index '{index_name}' already exists. Skipping loading data from {file_path}.")
                     continue
 
                 # Ensure the index exists
