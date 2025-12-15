@@ -1,0 +1,70 @@
+# ===============================
+# Python
+# ===============================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ===============================
+# Data science artifacts
+# ===============================
+*.csv
+*.xlsx
+*.parquet
+*.feather
+*.pickle
+*.pkl
+
+# Keep raw or reference data only if explicitly intended
+data/tmp/
+data/temp/
+data/intermediate/
+
+# ===============================
+# Temporary / generated files
+# ===============================
+tmp/
+temp/
+src/temp/
+output/
+outputs/
+logs/
+
+# ===============================
+# Docker
+# ===============================
+docker/tmp
+docker/data/
+docker/volumes/
+*.log
+
+# Allow Docker configuration files
+!Dockerfile
+!docker-compose.yml
+
+# ===============================
+# Power BI
+# ===============================
+*.pbix
+
+# ===============================
+# OS / IDE
+# ===============================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ===============================
+# Misc
+# ===============================
+*.zip
+*.tar.gz

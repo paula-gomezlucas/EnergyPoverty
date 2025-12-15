@@ -88,27 +88,77 @@ def get_query_params(category, widget, start_date_str, end_date_str):
         }
 
 def fetch_and_index_data(category, widget, start_date_str, end_date_str):
-    params = get_query_params(category, widget, start_date_str, end_date_str)
-    query_params = '&'.join([f"{key}={value}" for key, value in params.items()])
-    api_url = f"{BASE_URL}/{category}/{widget}?{query_params}"
-    print(f"Fetching data from URL: {api_url}")
-    response = requests.get(api_url, headers={"Accept": "application/json"})
-
-    if response.status_code == 200:
-        data = response.json()
-        bulk_data = []
-
-        # Handle different data structures based on category or widget
-        if category == 'balance' and widget == 'balance-electrico':
-            # Process balance data
-            for item in data.get('included', []):
-                attributes = item.get('attributes', {})
-                content_list = attributes.get('content', [])
-                for content in content_list:
-                    content_attributes = content.get('attributes', {})
-                    values_list = content_attributes.get('values', [])
+    # Directory to store progress
+    progress_dir = '/app/persisted_api'
+    if not os.path.exists(progress_dir):
+        os.makedirs(progress_dir)
+    
+    # File to track the last processed date
+    last_processed_file = f'{progress_dir}/{category}_{widget}_last_processed.txt'
+    
+    # Load the last processed date or set it to the start date
+    if os.path.exists(last_processed_file):
+        with open(last_processed_file, 'r') as file:
+            last_processed = datetime.strptime(file.read().strip(), "%Y-%m-%dT%H:%M")
+    else:
+        last_processed = datetime.strptime(start_date_str, "%Y-%m-%dT%H:%M")
+    
+    # End date for processing
+    final_end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M")
+    
+    # Loop through dates month by month
+    while last_processed <= final_end_date:
+        # Define the current month's range
+        next_month = last_processed.replace(day=28) + timedelta(days=4)  # Ensure next month
+        month_end = next_month - timedelta(days=next_month.day)  # End of the current month
+        month_start_str = last_processed.strftime("%Y-%m-%dT%H:%M")
+        month_end_str = min(month_end, final_end_date).strftime("%Y-%m-%dT%H:%M")
+        
+        # Prepare the API request parameters
+        params = get_query_params(category, widget, month_start_str, month_end_str)
+        query_params = '&'.join([f"{key}={value}" for key, value in params.items()])
+        api_url = f"{BASE_URL}/{category}/{widget}?{query_params}"
+        
+        print(f"Fetching data from URL: {api_url}")
+        
+        # Make the API request
+        response = requests.get(api_url, headers={"Accept": "application/json"})
+        if response.status_code == 200:
+            data = response.json()
+            bulk_data = []
+            
+            # Process the data based on category/widget structure
+            if category == 'balance' and widget == 'balance-electrico':
+                for item in data.get('included', []):
+                    attributes = item.get('attributes', {})
+                    content_list = attributes.get('content', [])
+                    for content in content_list:
+                        content_attributes = content.get('attributes', {})
+                        values_list = content_attributes.get('values', [])
+                        for value_item in values_list:
+                            doc_id = f"{category}_{widget}_{value_item.get('datetime')}_{content_attributes.get('title')}"
+                            # Check if the document already exists
+                            if not es.exists(index=f"{category}_{widget}".lower(), id=doc_id):
+                                doc = {
+                                    '_op_type': 'create',
+                                    '_index': f"{category}_{widget}".lower(),
+                                    '_id': doc_id,
+                                    '_source': {
+                                        'category': category,
+                                        'widget': widget,
+                                        'type': content_attributes.get('title'),
+                                        'value': value_item.get('value'),
+                                        'percentage': value_item.get('percentage'),
+                                        'datetime': value_item.get('datetime')
+                                    }
+                                }
+                                bulk_data.append(doc)
+            elif category == 'generacion' and widget == 'estructura-generacion':
+                for item in data.get('included', []):
+                    attributes = item.get('attributes', {})
+                    values_list = attributes.get('values', [])
                     for value_item in values_list:
-                        doc_id = f"{category}_{widget}_{value_item.get('datetime')}_{content_attributes.get('title')}"
+                        doc_id = f"{category}_{widget}_{value_item.get('datetime')}_{attributes.get('title')}"
                         # Check if the document already exists
                         if not es.exists(index=f"{category}_{widget}".lower(), id=doc_id):
                             doc = {
@@ -118,64 +168,29 @@ def fetch_and_index_data(category, widget, start_date_str, end_date_str):
                                 '_source': {
                                     'category': category,
                                     'widget': widget,
-                                    'type': content_attributes.get('title'),
+                                    'type': attributes.get('title'),
                                     'value': value_item.get('value'),
                                     'percentage': value_item.get('percentage'),
                                     'datetime': value_item.get('datetime')
                                 }
                             }
                             bulk_data.append(doc)
-                            # print(f"Prepared document with ID {doc_id} for bulk indexing.")
-                        else:
-                            # print(f"Document with ID {doc_id} already exists in '{category}_{widget}'.")
-                            pass
-        elif category == 'generacion' and widget == 'estructura-generacion':
-            # Process generation data
-            for item in data.get('included', []):
-                attributes = item.get('attributes', {})
-                values_list = attributes.get('values', [])
-                for value_item in values_list:
-                    doc_id = f"{category}_{widget}_{value_item.get('datetime')}_{attributes.get('title')}"
-                    # Check if the document already exists
-                    if not es.exists(index=f"{category}_{widget}".lower(), id=doc_id):
-                        doc = {
-                            '_op_type': 'create',
-                            '_index': f"{category}_{widget}".lower(),
-                            '_id': doc_id,
-                            '_source': {
-                                'category': category,
-                                'widget': widget,
-                                'type': attributes.get('title'),
-                                'value': value_item.get('value'),
-                                'percentage': value_item.get('percentage'),
-                                'datetime': value_item.get('datetime')
-                            }
-                        }
-                        bulk_data.append(doc)
-                        print(f"Prepared document with ID {doc_id} for bulk indexing.")
-                    else:
-                        # print(f"Document with ID {doc_id} already exists in '{category}_{widget}'.")
-                        pass
+            
+            # Bulk index the data
+            if bulk_data:
+                try:
+                    helpers.bulk(es, bulk_data)
+                    print(f"Indexed {len(bulk_data)} documents for {category}/{widget} from {month_start_str} to {month_end_str}.")
+                except helpers.BulkIndexError as bulk_error:
+                    print(f"Error indexing data: {bulk_error}")
+        
         else:
-            # Default processing (if applicable)
-            pass
-
-        # Use the bulk API to index documents
-        if bulk_data:
-            try:
-                # Execute bulk operation with 'create' op_type
-                helpers.bulk(es, bulk_data, raise_on_error=False)
-                print(f"Bulk indexed {len(bulk_data)} documents into '{category}_{widget}'.")
-            except helpers.BulkIndexError as bulk_error:
-                for error in bulk_error.errors:
-                    if error.get('create', {}).get('status') == 409:
-                        doc_id = error['create']['_id']
-                        # print(f"Document with ID {doc_id} already exists in '{category}_{widget}'.")
-                    else:
-                        print(f"Error indexing document: {error}")
-    else:
-        print(f"Failed to fetch data for {category}/{widget}: {response.status_code}")
-        print(f"Response content: {response.content}")
+            print(f"Failed to fetch data for {category}/{widget} from {month_start_str} to {month_end_str}. Status: {response.status_code}")
+        
+        # Update last processed date
+        last_processed = month_end + timedelta(days=1)
+        with open(last_processed_file, 'w') as file:
+            file.write(last_processed.strftime("%Y-%m-%dT%H:%M"))
 
 if __name__ == "__main__":
     for month_start, month_end in get_month_ranges(start_date, end_date):

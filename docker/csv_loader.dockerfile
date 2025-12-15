@@ -10,6 +10,7 @@ COPY data/ /app/data/
 # COPY data/autoconsumo /app/autoconsumo/
 # COPY data/tarifa /app/tarifa/
 
-RUN pip install elasticsearch pandas
+# Install Python dependencies
+RUN pip install --no-cache-dir pandas elasticsearch
 
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]

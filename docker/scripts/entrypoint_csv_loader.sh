@@ -1,5 +1,11 @@
 #!/bin/sh
+echo "Starting CSV Loader..."
 
-echo "Starting CSV to Elasticsearch loader"
-python3 load_csv.py
-echo "CSV loader completed"
+if [ -f /app/persisted_csv/processed.flag ]; then
+    echo "Data already processed. Skipping import."
+else
+    python3 load_csv.py
+    touch /app/persisted_csv/processed.flag
+fi
+
+echo "CSV Loader Completed."
